@@ -1,9 +1,14 @@
 
 # CRYPTOVERSE
+![icon](https://user-images.githubusercontent.com/62436360/183359750-f6f6c2f3-bafb-427b-a7dc-21a67040c85d.png)
 
 CryptoVerse is a website to keep track of all things crypto.
 Keep Track of rising and falling crypto prices as well as daily price changes, valuation and market cap of individual currencies and a bulletin board of your desired currency.
 
+
+![Currency Page](https://user-images.githubusercontent.com/62436360/183359665-e4bb0355-bcda-45d1-8834-34c7711e89df.png)
+![Homepage](https://user-images.githubusercontent.com/62436360/183359703-cfd7edd5-9911-4320-81f4-8d1276bb37d9.png)
+![news](https://user-images.githubusercontent.com/62436360/183359731-14dc2faa-a631-41a7-9886-faef17215b80.png)
 
 
 ## Features
@@ -16,6 +21,8 @@ Keep Track of rising and falling crypto prices as well as daily price changes, v
 - Price Gradients
 - Currency Overview
 - News
+
+
 
 
 
