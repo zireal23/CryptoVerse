@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/zirael23/CryptoKafkaProducer/coinApi"
@@ -13,12 +14,12 @@ import (
 
 const (
 	kafkaConn = "localhost:9092"
-	topic = "crypto"
+	topic = "crypto_topic"
 )
 
 func main(){
 	
-	coins := coinApi.GetAllCoins();
+	
 	
 	//create a new producer
 	
@@ -27,9 +28,31 @@ func main(){
 		log.Println("Error while initialising producer: ", err.Error());
 		os.Exit(1);
 	}
-	kafkaMessage := createMessageFormat(coins[0]);
+	
+	queryAPIandPublishMessage(producer);	
 
-	publishMessage(kafkaMessage, producer);
+
+}
+
+func queryAPIandPublishMessage(producer sarama.SyncProducer){
+
+	for {
+		startTime := time.Now();
+		log.Println("Querying the API at: ", startTime);
+		coins := coinApi.GetAllCoins();
+		fmt.Println(len(coins));
+		for _, currentCoin  := range coins{
+			log.Println("The coin currently being messaged: ", currentCoin.Name)
+			kafkaMessage := createMessageFormat(currentCoin);
+			publishMessage(kafkaMessage, producer);
+		}
+		log.Println("The entire process took: ",time.Since(startTime).Seconds());
+
+		time.Sleep(30 * time.Minute);
+
+	}
+
+
 
 }
 

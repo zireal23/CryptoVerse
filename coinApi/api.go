@@ -65,16 +65,16 @@ type Stats struct {
 
 
 func GetAllCoins() []Coin {
-	url := "https://coinranking1.p.rapidapi.com/coins?referenceCurrencyUuid=yhjMzLPhuIDl&timePeriod=24h&tiers%5B0%5D=1&orderBy=marketCap&orderDirection=desc&limit=1&offset=0"
+	url := "https://coinranking1.p.rapidapi.com/coins?referenceCurrencyUuid=yhjMzLPhuIDl&timePeriod=24h&tiers%5B0%5D=1&orderBy=marketCap&orderDirection=desc&limit=100&offset=0"
 
-	req, _ := http.NewRequest("GET", url, nil)
+	req, _ := http.NewRequest("GET", url, nil);
 
 	req.Header.Add("X-RapidAPI-Key", "81b82b588fmshf1cd64975bd20acp10f561jsn0606cfe22d88")
 	req.Header.Add("X-RapidAPI-Host", "coinranking1.p.rapidapi.com")
 
-	res, _ := http.DefaultClient.Do(req)
+	res, _ := http.DefaultClient.Do(req);
 
-	defer res.Body.Close()
+	defer res.Body.Close();
 	responseData, err := ioutil.ReadAll(res.Body);
 	if err != nil {
 		log.Fatalln("Error while reading response body", err.Error());
