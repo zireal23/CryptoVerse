@@ -1,0 +1,16 @@
+syntax="proto3";
+
+package kafkaSchema;
+
+option go_package = "./kafkaSchema/;kafkaSchemapb";
+
+message CoinData{
+    string uuid = 1;
+    string symbol= 2;
+    string name = 3;
+    string marketcap = 4;
+    string price = 5;
+    string change = 6;
+    string the24hvolume = 7;
+    string btcprice = 8;
+}

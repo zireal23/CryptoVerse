@@ -2,7 +2,10 @@ module github.com/zirael23/CryptoKafkaProducer
 
 go 1.18
 
-require github.com/Shopify/sarama v1.36.0
+require (
+	github.com/Shopify/sarama v1.36.0
+	google.golang.org/protobuf v1.26.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
