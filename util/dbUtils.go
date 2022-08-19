@@ -5,7 +5,6 @@ import (
 	"log"
 	"time"
 
-	kafkaSchemapb "github.com/zirael23/CryptoStreams/kafkaSchema"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,11 +16,11 @@ import (
 type CoinPriceData struct{
 	ID string
 	Name string
-	RealPrice string
-	ArithmeticAggregatePrice string
-	GeometricAggregatePrice string
-	HarmonicAggregatePrice string
-	timestamp string
+	RealPrice float32
+	ArithmeticAggregatePrice float32
+	GeometricAggregatePrice float32
+	HarmonicAggregatePrice float32
+	Timestamp time.Time
 }
 
 type DBResources struct {
@@ -99,11 +98,15 @@ func OpenDatabaseConnection() (DBResources, error) {
 }
 
 
-func InsertCoinPrices(dbResources DBResources,coinData *kafkaSchemapb.CoinData){
+func InsertCoinPricesToDB(dbResources DBResources,coinData CoinPriceData){
 	selectedCollection := dbResources.selectedCollection;
 
-	timeObject := time.Unix(coinData.GetTimestamp(),0); 
-	insertCoinPriceQuery := bson.D{{Key: "ID",Value: coinData.GetId()},{Key: "Name", Value: coinData.GetName()}, {Key: "Price", Value: coinData.GetPrice()},{Key: "timestamp",Value: primitive.NewDateTimeFromTime(timeObject)}}
+	insertCoinPriceQuery := bson.D{
+		{Key: "Name", Value: coinData.Name},
+		{Key: "RealPrice", Value: coinData.RealPrice},
+		{Key: "ArithmeticAggregatePrice", Value: coinData.ArithmeticAggregatePrice},
+		{Key: "Timestamp", Value: primitive.NewDateTimeFromTime(coinData.Timestamp)},
+	}
 	//filter := bson.M{"ID": coinData.GetId()};
 
 	_, err := selectedCollection.InsertOne(context.TODO(),insertCoinPriceQuery);

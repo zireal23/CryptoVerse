@@ -3,56 +3,51 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/wvanbergen/kafka/consumergroup"
 	kafkaSchemapb "github.com/zirael23/CryptoStreams/kafkaSchema"
+	"github.com/zirael23/CryptoStreams/lib"
 	"github.com/zirael23/CryptoStreams/util"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-    zookeeperConn = "zookeeper:2181"
+    zookeeperConn = "zookeeper:22181"
     consumerGroup = "cryptoConsumer"
     topic = "cryptoTopic"
 )
 
 func main() {
-    // setup sarama log to stdout
-    // sarama.Logger = log.New(os.Stdout, "", log.Ltime)
+    //setup sarama log to stdout
+    sarama.Logger = log.New(os.Stdout, "", log.Ltime)
 
-    // // init consumer
-    // consumerGroup, err := initConsumer()
-    // if err != nil {
-    //     fmt.Println("Error consumer group: ", err.Error())
-    //     os.Exit(1)
-    // }
-    // defer consumerGroup.Close()
+    // init consumer
+    consumerGroup, err := initConsumer()
+    if err != nil {
+        fmt.Println("Error consumer group: ", err.Error())
+        os.Exit(1)
+    }
+    defer consumerGroup.Close()
 
-    // // run consumer
-    // consume(consumerGroup)
     dbResources, err := util.OpenDatabaseConnection();
     if err != nil {
         log.Println("No DB Connection");
     }
-    log.Println(dbResources);
- 
-    coinData := kafkaSchemapb.CoinData{
-        Id: "BTC",
-        Name: "Bitcoin",
-        Price: "1232325",
-        Timestamp: time.Time.Unix(time.Now()),
-    }
-    start := time.Now();
-    for i := 0; i < 10000000; i++{
-        log.Println(i);
-        util.InsertCoinPrices(dbResources,&coinData);
-    }
-    log.Println("It took", time.Since(start).Seconds());
-    util.GetCoinPrices("Bitcoin", dbResources);
+    log.Println("Successfully Connected to DB");
+
+
+    // run consumer
+    consume(consumerGroup, dbResources);
+
     util.CloseDatabaseConnection(dbResources);
 }
+
+
+
+
 
 func initConsumer()(*consumergroup.ConsumerGroup, error) {
     // consumer config
@@ -69,7 +64,7 @@ func initConsumer()(*consumergroup.ConsumerGroup, error) {
     return consumerGroup, err
 }
 
-func consume(consumerGroup *consumergroup.ConsumerGroup) {
+func consume(consumerGroup *consumergroup.ConsumerGroup, dbResources util.DBResources) {
 	var count int64 = 0;
     for {
         select {
@@ -82,9 +77,18 @@ func consume(consumerGroup *consumergroup.ConsumerGroup) {
 			count++;
             kafkaResponseMessage := msg.Value;
 			var cryptoMessage kafkaSchemapb.CoinData;
-            // coinID := string(msg.Key);
+
 			proto.Unmarshal(kafkaResponseMessage,&cryptoMessage);
-			fmt.Println(cryptoMessage.Name,msg.Key);
+			
+            coinPriceDataforDB := util.CoinPriceData{
+                ID: cryptoMessage.GetId(),
+                Name: cryptoMessage.GetName(),
+                RealPrice: cryptoMessage.GetPrice(),
+                Timestamp: time.Unix(cryptoMessage.GetTimestamp(),0),
+                ArithmeticAggregatePrice: lib.CalulateCurrentArithmeticMean(cryptoMessage.GetPrice(),cryptoMessage.GetId()),
+            };
+
+                util.InsertCoinPricesToDB(dbResources,coinPriceDataforDB);
 
             // commit to zookeeper that message is read
             // this prevent read message multiple times after restart

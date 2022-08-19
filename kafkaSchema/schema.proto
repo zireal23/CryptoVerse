@@ -7,6 +7,6 @@ option go_package = "./kafkaSchema/;kafkaSchemapb";
 message CoinData{
     string id = 1;
     string name = 2;
-    string price = 3;
+    float price = 3;
     int64 timestamp = 4;
 }
