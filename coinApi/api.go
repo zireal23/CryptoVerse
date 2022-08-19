@@ -25,64 +25,42 @@ func (r *CoinAPI) Marshal() ([]byte, error) {
 }
 
 type CoinAPI struct {
-	Status string `json:"status"`
-	CoinData   Data   `json:"data"`  
-}
-
-type Data struct {
-	Stats Stats  `json:"stats"`
-	Coins []Coin `json:"coins"`
+	Coins []Coin `json:"data"`
 }
 
 type Coin struct {
-	UUID           string   `json:"uuid"`          
-	Symbol         string   `json:"symbol"`        
-	Name           string   `json:"name"`          
-	Color          string   `json:"color"`         
-	IconURL        string   `json:"iconUrl"`       
-	MarketCap      string   `json:"marketCap"`     
-	Price          string   `json:"price"`         
-	ListedAt       int64    `json:"listedAt"`      
-	Tier           int64    `json:"tier"`          
-	Change         string   `json:"change"`        
-	Rank           int64    `json:"rank"`          
-	Sparkline      []string `json:"sparkline"`     
-	LowVolume      bool     `json:"lowVolume"`     
-	CoinrankingURL string   `json:"coinrankingUrl"`
-	The24HVolume   string   `json:"24hVolume"`     
-	BtcPrice       string   `json:"btcPrice"`      
-}
-
-type Stats struct {
-	Total          int64  `json:"total"`         
-	TotalCoins     int64  `json:"totalCoins"`    
-	TotalMarkets   int64  `json:"totalMarkets"`  
-	TotalExchanges int64  `json:"totalExchanges"`
-	TotalMarketCap string `json:"totalMarketCap"`
-	Total24HVolume string `json:"total24hVolume"`
+	ID                string `json:"id"`               
+	Rank              string `json:"rank"`             
+	Symbol            string `json:"symbol"`           
+	Name              string `json:"name"`             
+	Supply            string `json:"supply"`           
+	MaxSupply         string `json:"maxSupply"`        
+	MarketCapUsd      string `json:"marketCapUsd"`     
+	VolumeUsd24Hr     string `json:"volumeUsd24Hr"`    
+	PriceUsd          string `json:"priceUsd"`         
+	ChangePercent24Hr string `json:"changePercent24Hr"`
+	Vwap24Hr          string `json:"vwap24Hr"`         
+	Explorer          string `json:"explorer"`         
 }
 
 
 
 func GetAllCoins() []Coin {
-	url := "https://coinranking1.p.rapidapi.com/coins?referenceCurrencyUuid=yhjMzLPhuIDl&timePeriod=24h&tiers%5B0%5D=1&orderBy=marketCap&orderDirection=desc&limit=100&offset=0"
+	url := "https://api.coincap.io/v2/assets";
 
 	req, _ := http.NewRequest("GET", url, nil);
 
-	req.Header.Add("X-RapidAPI-Key", "81b82b588fmshf1cd64975bd20acp10f561jsn0606cfe22d88")
-	req.Header.Add("X-RapidAPI-Host", "coinranking1.p.rapidapi.com")
-
 	res, _ := http.DefaultClient.Do(req);
 
-	defer res.Body.Close();
 	responseData, err := ioutil.ReadAll(res.Body);
 	if err != nil {
-		log.Fatalln("Error while reading response body", err.Error());
+		log.Println("Error while reading response body", err.Error());
 	}
+	defer res.Body.Close();
 	responseCoinData, err := UnmarshalCoinAPI(responseData);
 	if err != nil{
-		log.Fatalln("Error while unmarshalling coin api response", err.Error());
+		log.Println("Error while unmarshalling coin api response", err.Error());
 	}
 	
-	return responseCoinData.CoinData.Coins;
+	return responseCoinData.Coins;
 }

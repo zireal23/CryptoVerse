@@ -4,22 +4,25 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/joho/godotenv"
 	"github.com/zirael23/CryptoKafkaProducer/coinApi"
 	kafkaSchemapb "github.com/zirael23/CryptoKafkaProducer/kafkaSchema"
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-	kafkaConn = "localhost:9092"
-	topic = "crypto_topic"
-)
 
 func main(){
-	
-	
+	if(os.Getenv("GO_ENV")!="production"){
+	err := godotenv.Load();
+
+	if err != nil {
+		log.Println("Error while loading env file", err.Error());
+	}
+}
 	
 	//create a new producer
 	
@@ -35,20 +38,19 @@ func main(){
 }
 
 func queryAPIandPublishMessage(producer sarama.SyncProducer){
-
+	var count int64 = 0;
 	for {
 		startTime := time.Now();
-		log.Println("Querying the API at: ", startTime);
 		coins := coinApi.GetAllCoins();
 		fmt.Println(len(coins));
 		for _, currentCoin  := range coins{
-			log.Println("The coin currently being messaged: ", currentCoin.Name)
 			kafkaMessage := createMessageFormat(currentCoin);
-			publishMessage(kafkaMessage, producer);
+			publishMessage(kafkaMessage, producer,currentCoin);
+			time.Sleep(100*time.Millisecond);
 		}
+		count += 100;
 		log.Println("The entire process took: ",time.Since(startTime).Seconds());
-
-		time.Sleep(30 * time.Minute);
+		log.Println("No of messages pushed:", count);
 
 	}
 
@@ -58,15 +60,15 @@ func queryAPIandPublishMessage(producer sarama.SyncProducer){
 
 
 func createMessageFormat(coinData coinApi.Coin) []byte {
+	coinPrice, err  := strconv.ParseFloat(coinData.PriceUsd, 32);
+	if err != nil{
+		log.Println("Error while converting price to float", err.Error());
+	}
 	message := &kafkaSchemapb.CoinData{
-		Uuid: coinData.UUID,
-		Symbol: coinData.Symbol,
+		Id: coinData.ID,
 		Name: coinData.Name,
-		Marketcap: coinData.MarketCap,
-		Price: coinData.Price,
-		Change: coinData.Change,
-		The24Hvolume: coinData.The24HVolume,
-		Btcprice: coinData.BtcPrice,
+		Price: float32(coinPrice),
+		Timestamp: time.Now().Unix(),
 	}
 	kafkaMessage, err := proto.Marshal(message);
 	if err != nil {
@@ -82,36 +84,58 @@ func initialiseKafkaProducer() (sarama.SyncProducer, error){
 	sarama.Logger = log.New(os.Stdout, "", log.Ltime);
 
 	//producer config
+	// kafkaConnectionURL := os.Getenv("kafkaConnectionURL");
+	// saslMechanism := os.Getenv("SASLMECHANISM");
+	// saslUserName := os.Getenv("SASLUSER");
+	// saslPassword := os.Getenv("SASLPASSWORD");
+	// clientID := os.Getenv("CLIENTID");
 
 	config := sarama.NewConfig();
 	config.Producer.Retry.Max = 5;
 	config.Producer.RequiredAcks = sarama.WaitForAll;
 	config.Producer.Return.Successes = true;
+	// config.Net.SASL.Enable = true;
+	// config.Net.TLS.Enable = true;
+	// config.Net.SASL.Mechanism = sarama.SASLMechanism(saslMechanism);
+	// config.Net.SASL.User = saslUserName;
+	// config.Net.SASL.Password = saslPassword;
+	// config.ClientID = clientID;
+	config.ClientID = "crypto_producer";
 
 	//async producer 
 	// prd, err := sarama.NewAsyncProducer([]string{kafkaConn}, config);
 
 	//sync producer
-
-	producer, err := sarama.NewSyncProducer([]string{kafkaConn}, config);
+	var producer sarama.SyncProducer;
+	var err error;
+	kafkaConnectionURL := os.Getenv("KAFKA_CONNECTION");
+	for{
+		producer, err = sarama.NewSyncProducer([]string{kafkaConnectionURL}, config);
+		if err == nil {
+			break;
+		}
+		log.Println("Couldnt connect to kafka, Retrying....");
+	}
 
 	return producer, err;
 }
 
 
 
-func publishMessage(message []byte, producer sarama.SyncProducer) {
+func publishMessage(message []byte, producer sarama.SyncProducer, coin coinApi.Coin) {
+	kafkaTopic := os.Getenv("KAFKA_TOPIC");
 	msg := &sarama.ProducerMessage{
-		Topic: topic,
+		Topic: kafkaTopic,
+		Key: sarama.StringEncoder(coin.ID),
 		Value: sarama.ByteEncoder(message),
 	}
 
-	partition, offset, err := producer.SendMessage(msg);
+	_, _, err := producer.SendMessage(msg);
 	if err != nil {
-		log.Fatalln("Error pushing message to Kafka", err.Error());
+		log.Println("Error pushing message to Kafka", err.Error());
 	}
 
-	fmt.Println("Message pushed to partition: ", partition);
-	fmt.Println("Message pushed to offset: ", offset);
+	// fmt.Println("Message pushed to partition: ", partition);
+	// fmt.Println("Message pushed to offset: ", offset);
 
 }
