@@ -52,7 +52,7 @@ func initTimeSeriesCollection(client *mongo.Client) error {
 
 
 func OpenDatabaseConnection() (DBResources, error) {
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://zirael:sayan@localhost:27017/"));
+	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://zirael:sayan@mongodb:27017/"));
 	if err != nil {
 		log.Printf("Couldnt create mongoDB client due to: %v", err);
 		return DBResources{}, err;
@@ -105,7 +105,7 @@ func InsertCoinPricesToDB(dbResources DBResources,coinData CoinPriceData){
 		{Key: "Name", Value: coinData.Name},
 		{Key: "RealPrice", Value: coinData.RealPrice},
 		{Key: "ArithmeticAggregatePrice", Value: coinData.ArithmeticAggregatePrice},
-		{Key: "Timestamp", Value: primitive.NewDateTimeFromTime(coinData.Timestamp)},
+		{Key: "timestamp", Value: primitive.NewDateTimeFromTime(coinData.Timestamp)},
 	}
 	//filter := bson.M{"ID": coinData.GetId()};
 

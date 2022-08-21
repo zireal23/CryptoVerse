@@ -1,9 +1,10 @@
-version: "3.8"
+version: "3"
 networks:
   kafka_network:
     name: cryptoKafkaNetwork
 services: 
   cryptokafkastreamer:
+    container_name: kafkaStreamer
     build:  
       context: ./
       dockerfile: dockerfile
@@ -13,3 +14,4 @@ services:
       KAFKA_CONNECTION: kafka:9092
     networks:
       - kafka_network
+    

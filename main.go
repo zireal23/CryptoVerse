@@ -6,41 +6,32 @@ import (
 	"os"
 	"time"
 
-	"github.com/Shopify/sarama"
-	"github.com/wvanbergen/kafka/consumergroup"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	kafkaSchemapb "github.com/zirael23/CryptoStreams/kafkaSchema"
 	"github.com/zirael23/CryptoStreams/lib"
 	"github.com/zirael23/CryptoStreams/util"
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-    zookeeperConn = "zookeeper:22181"
-    consumerGroup = "cryptoConsumer"
-    topic = "cryptoTopic"
+var (
+    topic = []string{
+        "cryptoTopic",
+    }
+    MIN_COMMIT_COUNT = 100;
 )
 
 func main() {
-    //setup sarama log to stdout
-    sarama.Logger = log.New(os.Stdout, "", log.Ltime)
 
-    // init consumer
-    consumerGroup, err := initConsumer()
-    if err != nil {
-        fmt.Println("Error consumer group: ", err.Error())
-        os.Exit(1)
-    }
-    defer consumerGroup.Close()
+     kafkaConsumer := initConsumer();
+    log.Println("The kafka consumer was successfully initialised");
 
     dbResources, err := util.OpenDatabaseConnection();
     if err != nil {
         log.Println("No DB Connection");
     }
     log.Println("Successfully Connected to DB");
-
-
-    // run consumer
-    consume(consumerGroup, dbResources);
+    lib.InitMap();
+    consumeKafkaMessages(kafkaConsumer, dbResources);
 
     util.CloseDatabaseConnection(dbResources);
 }
@@ -49,53 +40,64 @@ func main() {
 
 
 
-func initConsumer()(*consumergroup.ConsumerGroup, error) {
-    // consumer config
-    config := consumergroup.NewConfig()
-    config.Offsets.Initial = sarama.OffsetOldest
-    config.Offsets.ProcessingTimeout = 1 * time.Second
-
-    // join to consumer group
-    consumerGroup, err := consumergroup.JoinConsumerGroup(consumerGroup, []string{topic}, []string{zookeeperConn}, config)
-    if err != nil {
-        return nil, err
+func initConsumer() *kafka.Consumer {
+    configMap := kafka.ConfigMap{
+        "bootstrap.servers": "kafka:9092",
+        "group.id":          "kafkaStreamer",
+        "auto.offset.reset": "smallest",
+        "enable.auto.commit": "false",
     }
+    kafkaConsumer, err := kafka.NewConsumer(&configMap);
 
-    return consumerGroup, err
+    if err != nil {
+        log.Println("The consumer failed to initialise", err.Error());
+    }
+    return kafkaConsumer;
 }
 
-func consume(consumerGroup *consumergroup.ConsumerGroup, dbResources util.DBResources) {
-	var count int64 = 0;
-    for {
-        select {
-        case msg := <-consumerGroup.Messages():
-            // messages coming through chanel
-            // only take messages from subscribed topic
-	    if msg.Topic != topic {
-                continue
-            }
-			count++;
-            kafkaResponseMessage := msg.Value;
-			var cryptoMessage kafkaSchemapb.CoinData;
+func consumeKafkaMessages(kafkaConsumer *kafka.Consumer, dbResources util.DBResources) {
+    err := kafkaConsumer.SubscribeTopics(topic,nil);
 
-			proto.Unmarshal(kafkaResponseMessage,&cryptoMessage);
-			
-            coinPriceDataforDB := util.CoinPriceData{
-                ID: cryptoMessage.GetId(),
-                Name: cryptoMessage.GetName(),
-                RealPrice: cryptoMessage.GetPrice(),
-                Timestamp: time.Unix(cryptoMessage.GetTimestamp(),0),
-                ArithmeticAggregatePrice: lib.CalulateCurrentArithmeticMean(cryptoMessage.GetPrice(),cryptoMessage.GetId()),
-            };
-
-                util.InsertCoinPricesToDB(dbResources,coinPriceDataforDB);
-
-            // commit to zookeeper that message is read
-            // this prevent read message multiple times after restart
-            err := consumerGroup.CommitUpto(msg)
-            if err != nil {
-                fmt.Println("Error commit zookeeper: ", err.Error())
-            }
-        }
+    if err != nil{
+        log.Println("Couldnt subscribe to kafka topic", err.Error());
     }
+
+    numberOfMessagesRead := 0;
+    run := true;
+
+    for run {
+        kafkaevent := kafkaConsumer.Poll(100);
+        
+        switch event := kafkaevent.(type){
+        case *kafka.Message:
+            numberOfMessagesRead += 1;
+            if numberOfMessagesRead % 100 == 0{
+                kafkaConsumer.Commit();
+            }
+            log.Println(string(event.Key));
+            var coinDataResponse kafkaSchemapb.CoinData;
+            eventResponse := event.Value;
+            proto.Unmarshal(eventResponse,&coinDataResponse);
+            coinDataforDB := util.CoinPriceData{
+                ID: coinDataResponse.GetId(),
+                Name: coinDataResponse.GetName(),
+                RealPrice: coinDataResponse.GetPrice(),
+                Timestamp: time.Unix(coinDataResponse.GetTimestamp(),0),
+                ArithmeticAggregatePrice: lib.CalulateCurrentArithmeticMean(coinDataResponse.GetPrice(),coinDataResponse.GetId()),
+            }
+            log.Println("The number of messages read is:", numberOfMessagesRead);
+            util.InsertCoinPricesToDB(dbResources,coinDataforDB);
+        case kafka.PartitionEOF:
+            log.Printf("%% Reached %v\n", event);
+        case kafka.Error:
+            fmt.Fprintf(os.Stderr, "%% Error: %v\n",event);
+            run = false;
+            util.CloseDatabaseConnection(dbResources);
+            kafkaConsumer.Close();
+        default:
+            log.Printf("Ignored %v\n", event);
+        }
+
+    }
+
 }

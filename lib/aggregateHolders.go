@@ -4,7 +4,6 @@ import (
 	"container/list"
 	"log"
 )
-
 /**
 * For every coin I am storing the prices of every 10 second interval for a 24 hour period.
 * So there will be 8640 records for every coin.
@@ -27,8 +26,8 @@ type RollingMeans struct {
 	ArithmeticMean float32
 	GeomtericMean float32
 	HarmonicMean float32
+    NumberOfElements int32;
 }
-var NumberOfElements int32 = 0;
 var LimitOfArrayElements int32 = 8640;
 
 
@@ -43,16 +42,60 @@ var CryptoAggregatePrices map[string]*RollingMeans;
 
 
 
+
+/**
+* TO initialize the map, we need to call the InitMap function
+* The map is a global variable so we can access it from anywhere
+* The map is a map of strings to RollingMeans structs
+* The RollingMeans struct has a list of floats, three floats for the means and an integer for the number of elements.
+* The make function of golang is used to initialize the map, it takes the type of the key and the type of the value.
+* The map is a reference type so we dont need to return it.
+**/
+
 func InitMap(){
 	CryptoAggregatePrices = make(map[string]*RollingMeans);
 }
 
 
+/**
+* This function is used to check if the map has been initialized or not
+* If not then we initialize it
+* If yes then we check if the map has the key for the cryptoSymbol
+* If not then we initialize the map for that cryptoSymbol
+* We initialise all the fields of the struct to 0.
+**/
+
+func CheckAndInitCurrencyMap(cryptoSymbol string) {
+	if _, isPresent := CryptoAggregatePrices[cryptoSymbol]; !isPresent{
+		currencyAggregates := &RollingMeans{
+			CryptoPricesArray: list.New(),
+			ArithmeticMean: 0,
+			GeomtericMean: 0,
+			HarmonicMean: 0,
+			NumberOfElements: 0,
+		}
+		CryptoAggregatePrices[cryptoSymbol] = currencyAggregates;
+}
+}
+
+
+/**
+* This function is used to update the holding structs for a specific crypto symbol.
+* The function takes the crypto symbol and the current price as parameters.
+* The function first checks if the map has been initialized or not.
+* If not then it initializes the map.
+* Since the prices array is a collection of prices for a 24 hour period at 10 second intervals, we need to check if the array has reached its limit or not.
+* If not then we just need to add the new price to the array and increment the number of elements.
+* If yes then we need to remove the oldest price from the array and add the new price to the array.
+* The function also inserts the new price to the array after doing a type assertion since the list container stores the elements as interface types.
+**/
 
 
 func UpdateCryptoStructs(cryptoSymbol string, currentPrice float32){
-	if(NumberOfElements+1<=LimitOfArrayElements){
-		NumberOfElements++;
+	CheckAndInitCurrencyMap(cryptoSymbol);
+
+	if(CryptoAggregatePrices[cryptoSymbol].NumberOfElements+1<=LimitOfArrayElements){
+		CryptoAggregatePrices[cryptoSymbol].NumberOfElements++;
 	}else{
 		/*
 		* We are removing the oldest value

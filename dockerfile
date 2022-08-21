@@ -2,7 +2,8 @@
 FROM golang:1.18.4-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN go build -o main main.go
+RUN apk add build-base
+RUN go build -tags musl -o main main.go 
 
 
 #RUN stage
