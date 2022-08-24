@@ -1,4 +1,5 @@
-
+![GitHub language count](https://img.shields.io/github/languages/count/zireal23/CryptoVerse) ![GitHub top language](https://img.shields.io/github/languages/top/zireal23/CryptoVerse) ![GitHub followers](https://img.shields.io/github/followers/zireal23?style=social)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/w/zireal23/CryptoVerse)
 # CRYPTOVERSE
 ![icon](https://user-images.githubusercontent.com/62436360/183359750-f6f6c2f3-bafb-427b-a7dc-21a67040c85d.png)
 
