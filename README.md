@@ -21,12 +21,25 @@ Keep Track of rising and falling crypto prices as well as daily price changes, v
 - Price Gradients
 - Currency Overview
 - News
-
-
+- Aggregate Linear, Geometric and Harmonic Means
+- Streaming CryptoCurrency data in real time
 
 
 
 ## Tech Used
+![Screenshot from 2022-08-24 12-42-03](https://user-images.githubusercontent.com/62436360/186360059-d2ce733f-90cc-4d83-9627-e8348e2e5b59.png)
+- CryptoCurrency Data fetching is done at intervals of 10 seconds from CoinRanking API through a golang application
+   that extracts prices, exhchanges, dips and rises.
+- The data is converted to a kafka encoded byte message with the name of the cryptocurrency as the key and the message as the value.
+  The byte encoding is done adhering to the protobuffer schema and the message then goes through an additonal schema verification.
+- Golang based Consumer application that reads from the offset of the kafka Cluster and converts the byte slice back to the original message.
+- Each individual message consists of the cryptocurrency ID, name of the currency and the last price including the timestamp.
+- The messages are then processed to get the linear, geomtric and harmonic aggregates. The aggregate calculation is done using rolling window functions with window size of 1 day.
+- MongoDB time series collections are used as a sink to persist the aggregates as well as the real time prices.
+- NodeJs-Express Backend to serve real time  prices and aggregates through REST endpoints with support for gRPC endpoints as well.
+- React App built using ANT Designs and React Charts to display data systematically and meaningfully.
+
+
 - HTML
 - CSS
 - JavaScript
@@ -34,9 +47,28 @@ Keep Track of rising and falling crypto prices as well as daily price changes, v
 - Redux
 - ANT UI
 - CoinRanking API
+- Apache KAfka
+- Golang
+- gRPC
+- Protobuffers schema 
+- MongoDB
+- Docker
 
 
 ## Run Locally
+Docker
+- Download and install docker-engine to run the containerized apps and docker-desktop to monitor the apps.
+- Download and install Docker compose.
+- Download the docker-compose.yml file from the repository.
+- From the terminal, run
+```
+docker compose up
+```
+- Check the docker logs to make sure the apps are running.
+- To check the produced messages and topics created, visit kafdrop's homepage `localhost:9000` 
+- To check produced messages, connect to the mongoDB container using mongoDB compass with the authentication string `mongodb://zirael:sayan@mongodb:27017/`
+
+
 
 Clone the project
 
