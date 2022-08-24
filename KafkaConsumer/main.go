@@ -4,138 +4,100 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
-	"github.com/Shopify/sarama"
-	"github.com/joho/godotenv"
-	"github.com/zirael23/CryptoKafkaProducer/coinApi"
-	kafkaSchemapb "github.com/zirael23/CryptoKafkaProducer/kafkaSchema"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	kafkaSchemapb "github.com/zirael23/CryptoStreams/kafkaSchema"
+	"github.com/zirael23/CryptoStreams/lib"
+	"github.com/zirael23/CryptoStreams/util"
 	"google.golang.org/protobuf/proto"
 )
 
+var (
+    topic = []string{
+        "cryptoTopic",
+    }
+    MIN_COMMIT_COUNT = 100;
+)
 
-func main(){
-	if(os.Getenv("GO_ENV")!="production"){
-	err := godotenv.Load();
+func main() {
 
-	if err != nil {
-		log.Println("Error while loading env file", err.Error());
-	}
-}
-	
-	//create a new producer
-	
-	producer, err := initialiseKafkaProducer();
-	if err != nil {
-		log.Println("Error while initialising producer: ", err.Error());
-		os.Exit(1);
-	}
-	
-	queryAPIandPublishMessage(producer);	
+     kafkaConsumer := initConsumer();
+    log.Println("The kafka consumer was successfully initialised");
 
+    dbResources, err := util.OpenDatabaseConnection();
+    if err != nil {
+        log.Println("No DB Connection");
+    }
+    log.Println("Successfully Connected to DB");
+    lib.InitMap();
+    consumeKafkaMessages(kafkaConsumer, dbResources);
 
-}
-
-func queryAPIandPublishMessage(producer sarama.SyncProducer){
-	var count int64 = 0;
-	for {
-		startTime := time.Now();
-		coins := coinApi.GetAllCoins();
-		fmt.Println(len(coins));
-		for _, currentCoin  := range coins{
-			kafkaMessage := createMessageFormat(currentCoin);
-			publishMessage(kafkaMessage, producer,currentCoin);
-			time.Sleep(100*time.Millisecond);
-		}
-		count += 100;
-		log.Println("The entire process took: ",time.Since(startTime).Seconds());
-		log.Println("No of messages pushed:", count);
-
-	}
-
-
-
-}
-
-
-func createMessageFormat(coinData coinApi.Coin) []byte {
-	coinPrice, err  := strconv.ParseFloat(coinData.PriceUsd, 32);
-	if err != nil{
-		log.Println("Error while converting price to float", err.Error());
-	}
-	message := &kafkaSchemapb.CoinData{
-		Id: coinData.ID,
-		Name: coinData.Name,
-		Price: float32(coinPrice),
-		Timestamp: time.Now().Unix(),
-	}
-	kafkaMessage, err := proto.Marshal(message);
-	if err != nil {
-		log.Println("Error while serializing message", err.Error());
-	} 
-	return kafkaMessage;
+    util.CloseDatabaseConnection(dbResources);
 }
 
 
 
-func initialiseKafkaProducer() (sarama.SyncProducer, error){
-	// setup sarama log to stdout
-	sarama.Logger = log.New(os.Stdout, "", log.Ltime);
 
-	//producer config
-	// kafkaConnectionURL := os.Getenv("kafkaConnectionURL");
-	// saslMechanism := os.Getenv("SASLMECHANISM");
-	// saslUserName := os.Getenv("SASLUSER");
-	// saslPassword := os.Getenv("SASLPASSWORD");
-	// clientID := os.Getenv("CLIENTID");
 
-	config := sarama.NewConfig();
-	config.Producer.Retry.Max = 5;
-	config.Producer.RequiredAcks = sarama.WaitForAll;
-	config.Producer.Return.Successes = true;
-	// config.Net.SASL.Enable = true;
-	// config.Net.TLS.Enable = true;
-	// config.Net.SASL.Mechanism = sarama.SASLMechanism(saslMechanism);
-	// config.Net.SASL.User = saslUserName;
-	// config.Net.SASL.Password = saslPassword;
-	// config.ClientID = clientID;
-	config.ClientID = "crypto_producer";
+func initConsumer() *kafka.Consumer {
+    configMap := kafka.ConfigMap{
+        "bootstrap.servers": "kafka:9092",
+        "group.id":          "kafkaStreamer",
+        "auto.offset.reset": "smallest",
+        "enable.auto.commit": "false",
+    }
+    kafkaConsumer, err := kafka.NewConsumer(&configMap);
 
-	//async producer 
-	// prd, err := sarama.NewAsyncProducer([]string{kafkaConn}, config);
-
-	//sync producer
-	var producer sarama.SyncProducer;
-	var err error;
-	kafkaConnectionURL := os.Getenv("KAFKA_CONNECTION");
-	for{
-		producer, err = sarama.NewSyncProducer([]string{kafkaConnectionURL}, config);
-		if err == nil {
-			break;
-		}
-		log.Println("Couldnt connect to kafka, Retrying....");
-	}
-
-	return producer, err;
+    if err != nil {
+        log.Println("The consumer failed to initialise", err.Error());
+    }
+    return kafkaConsumer;
 }
 
+func consumeKafkaMessages(kafkaConsumer *kafka.Consumer, dbResources util.DBResources) {
+    err := kafkaConsumer.SubscribeTopics(topic,nil);
 
+    if err != nil{
+        log.Println("Couldnt subscribe to kafka topic", err.Error());
+    }
 
-func publishMessage(message []byte, producer sarama.SyncProducer, coin coinApi.Coin) {
-	kafkaTopic := os.Getenv("KAFKA_TOPIC");
-	msg := &sarama.ProducerMessage{
-		Topic: kafkaTopic,
-		Key: sarama.StringEncoder(coin.ID),
-		Value: sarama.ByteEncoder(message),
-	}
+    numberOfMessagesRead := 0;
+    run := true;
 
-	_, _, err := producer.SendMessage(msg);
-	if err != nil {
-		log.Println("Error pushing message to Kafka", err.Error());
-	}
+    for run {
+        kafkaevent := kafkaConsumer.Poll(100);
+        
+        switch event := kafkaevent.(type){
+        case *kafka.Message:
+            numberOfMessagesRead += 1;
+            if numberOfMessagesRead % 100 == 0{
+                kafkaConsumer.Commit();
+            }
+            log.Println(string(event.Key));
+            var coinDataResponse kafkaSchemapb.CoinData;
+            eventResponse := event.Value;
+            proto.Unmarshal(eventResponse,&coinDataResponse);
+            coinDataforDB := util.CoinPriceData{
+                ID: coinDataResponse.GetId(),
+                Name: coinDataResponse.GetName(),
+                RealPrice: coinDataResponse.GetPrice(),
+                Timestamp: time.Unix(coinDataResponse.GetTimestamp(),0),
+                ArithmeticAggregatePrice: lib.CalulateCurrentArithmeticMean(coinDataResponse.GetPrice(),coinDataResponse.GetId()),
+            }
+            log.Println("The number of messages read is:", numberOfMessagesRead);
+            util.InsertCoinPricesToDB(dbResources,coinDataforDB);
+        case kafka.PartitionEOF:
+            log.Printf("%% Reached %v\n", event);
+        case kafka.Error:
+            fmt.Fprintf(os.Stderr, "%% Error: %v\n",event);
+            run = false;
+            util.CloseDatabaseConnection(dbResources);
+            kafkaConsumer.Close();
+        default:
+            log.Printf("Ignored %v\n", event);
+        }
 
-	// fmt.Println("Message pushed to partition: ", partition);
-	// fmt.Println("Message pushed to offset: ", offset);
+    }
 
 }
