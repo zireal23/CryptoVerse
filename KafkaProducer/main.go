@@ -24,7 +24,6 @@ func main(){
 	}
 }
 	
-	//create a new producer
 	
 	producer, err := initialiseKafkaProducer();
 	if err != nil {
