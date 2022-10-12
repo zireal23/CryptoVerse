@@ -21,7 +21,7 @@ import {
   useGetCryptoHistoryQuery,
 } from "../services/cryptoapi";
 // import Loader from "./Loader";
-import LiveChart from "./LineChart";
+import LiveChart from "./RealTimeChart";
 //import CryptoDetails from './CryptoDetails';
 
 const { Title, Text } = Typography;
